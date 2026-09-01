@@ -1,0 +1,7 @@
+# Development-only files (kept in git but excluded from the published archive)
+tests/
+__pycache__/
+*.pyc
+.mimosa/
+.v2c/
+node.zip

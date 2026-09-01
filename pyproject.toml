@@ -1,0 +1,17 @@
+[project]
+name = "novelai-cloud"
+version = "1.0.0"
+description = "NovelAI cloud image generation for ComfyUI: text-to-image, img2img and inpainting with live Anlas cost preview."
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+dependencies = []
+classifiers = [
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Repository = "https://github.com/Bigesila-B/ComfyUI-NovelAI-Cloud"
+
+[tool.comfy]
+PublisherId = "bigesila"
+DisplayName = "NovelAI Cloud"
