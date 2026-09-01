@@ -1,6 +1,6 @@
 [project]
 name = "novelai-cloud"
-version = "1.0.0"
+version = "1.0.1"
 description = "NovelAI cloud image generation for ComfyUI: text-to-image, img2img and inpainting with live Anlas cost preview."
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
