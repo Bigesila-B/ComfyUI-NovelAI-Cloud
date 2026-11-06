@@ -14,6 +14,24 @@ from PIL import Image
 from . import anlas, models_catalog
 from .nai_api import NAIError, NovelAIClient, build_payload, image_to_b64_png
 
+
+def _say(*args, **kw):
+    """print() 的替身：遇到控制台编码打不出的字符也不抛异常。
+
+    为什么要它：中文 Windows 的控制台是 GBK，日志里只要出现一个编不出的字符
+    （例如面积说明里的 U+00B2，也就是 "²"），print() 就抛 UnicodeEncodeError；
+    而 ComfyUI 打印这个异常时又编不出来 —— 结果是执行线程直接死掉，
+    任务永远停在 0%、界面上没有任何可读的报错。
+
+    宁可日志里少一个字符（打成 ?），也不能让一次出图白跑。
+    """
+    try:
+        print(*args, **kw)
+    except UnicodeEncodeError:
+        safe = [str(a).encode("gbk", "replace").decode("gbk", "replace") for a in args]
+        print(*safe, **kw)
+
+
 _RESIZE_HINT = "原图尺寸与分辨率不一致，已自动缩放到设定分辨率"
 
 
@@ -167,10 +185,10 @@ class NovelAICloudGenerator:
         if mask is not None:
             inp_id = models_catalog.get_inpainting_id(model_id)
             if inp_id:
-                print(f"[NovelAI Cloud] 局部重绘：模型 {model_id} → {inp_id}")
+                _say(f"[NovelAI Cloud] 局部重绘：模型 {model_id} → {inp_id}")
                 model_id, family = inp_id, models_catalog.get_family(inp_id)
             else:
-                print(f"[NovelAI Cloud] 警告：未知模型 {model_id} 的 inpainting 变体，按原模型尝试")
+                _say(f"[NovelAI Cloud] 警告：未知模型 {model_id} 的 inpainting 变体，按原模型尝试")
             action = "inpaint"
         elif image is not None:
             action = "img2img"
@@ -190,7 +208,7 @@ class NovelAICloudGenerator:
         if image is not None:
             src = _tensor_to_pil(image[0])
             if src.size != (width, height):
-                print(f"[NovelAI Cloud] {_RESIZE_HINT}: {src.size} → {(width, height)}")
+                _say(f"[NovelAI Cloud] {_RESIZE_HINT}: {src.size} → {(width, height)}")
                 src = src.resize((width, height), Image.LANCZOS)
             image_b64 = image_to_b64_png(src)
         if mask is not None:
@@ -211,7 +229,7 @@ class NovelAICloudGenerator:
         est_opus = anlas.estimate_cost(width, height, steps, n_samples,
                                        strength=strength, smea=smea_on,
                                        smea_dyn=smea_dyn_on, opus=True)
-        print(f"[NovelAI Cloud] 预计消耗: 非Opus {est['total']} Anlas | "
+        _say(f"[NovelAI Cloud] 预计消耗: 非Opus {est['total']} Anlas | "
               f"Opus {est_opus['total']} Anlas{'（首张免费）' if est_opus['opus_free'] else ''}"
               f" | 单张 {est['per_image']}")
 
@@ -223,13 +241,13 @@ class NovelAICloudGenerator:
                 if isinstance(sub.get("anlas"), int) and sub["anlas"] < est["total"]:
                     raise NAIError(f"Anlas 余额不足：预计需要 {est['total']}，当前仅 {sub['anlas']}。"
                                    f"已取消本次生成（未消耗积分）。可改用 V4.5 Full 普通尺寸免费档")
-                print(f"[NovelAI Cloud] 账户：{sub['tier_name']} 订阅"
+                _say(f"[NovelAI Cloud] 账户：{sub['tier_name']} 订阅"
                       f"{'' if sub['active'] else '（已过期）'}，"
                       f"Anlas 余额：{'无限（Opus）' if sub.get('anlas_unlimited') else sub.get('anlas')}")
             except NAIError as e:
                 if e.status == 401 or "余额不足" in str(e):
                     raise
-                print(f"[NovelAI Cloud] 订阅查询跳过: {e}")
+                _say(f"[NovelAI Cloud] 订阅查询跳过: {e}")
 
         # ---- 逐张串行生成（账号并发锁=1，串行 + 429 自动退避） ----
         try:
@@ -256,12 +274,12 @@ class NovelAICloudGenerator:
                 image_b64=image_b64, mask_b64=mask_b64,
                 strength=strength, noise=img2img_noise,
             )
-            print(f"[NovelAI Cloud] 生成 {i + 1}/{n_samples}: {model_id} "
+            _say(f"[NovelAI Cloud] 生成 {i + 1}/{n_samples}: {model_id} "
                   f"{width}x{height} steps={steps} scale={cfg_scale} seed={seed_i} action={action}")
             for png in client.generate(payload):
                 img = Image.open(io.BytesIO(png)).convert("RGB")
                 images.append(np.array(img).astype(np.float32) / 255.0)
-                print(f"[NovelAI Cloud] 第 {i + 1} 张完成 seed={seed_i}，"
+                _say(f"[NovelAI Cloud] 第 {i + 1} 张完成 seed={seed_i}，"
                       f"NovelAI 参数已含在原始 PNG 元数据中")
             if pbar:
                 pbar.update(1)
